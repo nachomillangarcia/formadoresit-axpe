@@ -16,6 +16,18 @@ FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
+COPY docker-entrypoint.sh .
+
+RUN chmod +x docker-entrypoint.sh
+
+USER 65534
+
 COPY --from=build /app/app.jar /app/app.jar
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
+
+CMD ["java", "-jar", "app.jar"]
+
+
+
+
