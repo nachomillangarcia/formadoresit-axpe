@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: axpe-java
+spec:
+  containers:
+    - name: axpe-java
+      image: nachomillangarcia/axpe-java-api:latest
+      ports:
+      - containerPort: 8080
