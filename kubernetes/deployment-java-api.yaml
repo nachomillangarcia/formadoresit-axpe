@@ -31,9 +31,24 @@ spec:
             limits:
               memory: 150Mi
               cpu: 100m
+
           livenessProbe:
             httpGet:
               path: /
               port: 8080
             failureThreshold: 3
-            periodSeconds: 5
+            periodSeconds: 10
+
+          startupProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            failureThreshold: 1
+            periodSeconds: 10
+          
