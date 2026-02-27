@@ -27,6 +27,9 @@
     - [General commands](#general-commands)
     - [Pods](#pods)
     - [Deployments (deploy)](#deployments-deploy)
+    - [DeamonSets (ds)](#deamonsets-ds)
+    - [Jobs](#jobs)
+    - [Cronjobs](#cronjobs)
 
 
 # Docker
@@ -285,3 +288,22 @@ https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
 - Rollback to a version: `kubectl rollout undo deployment <DEPLOYMENT> --to-revision <VERSION>`
 
 ReplicaSets: https://kubernetes.io/es/docs/concepts/workloads/controllers/replicaset/
+
+### DeamonSets (ds)
+
+Deploys 1 pod on all nodes in the cluster
+
+https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+
+### Jobs
+
+Run a pod that runs a task meant to have an end. Once the tasks inide the containers ends with success, it's marked as completed and does not run anymore. If the task fails, it retries with a configurable policy.
+
+https://kubernetes.io/docs/concepts/workloads/controllers/job/
+
+### Cronjobs
+
+A cronjob creates jobs according to a specific schedule.
+
+https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+
