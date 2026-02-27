@@ -43,7 +43,7 @@ spec:
             httpGet:
               path: /
               port: 8080
-            periodSeconds: 10
+            periodSeconds: 5
 
           readinessProbe:
             httpGet:
@@ -51,4 +51,13 @@ spec:
               port: 8080
             failureThreshold: 1
             periodSeconds: 10
-          
+
+          volumeMounts:
+          - name: config
+            mountPath: /app/config
+
+
+      volumes:
+      - name: config
+        configMap:
+          name: java-api-config
