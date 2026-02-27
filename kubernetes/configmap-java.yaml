@@ -10,3 +10,5 @@ data:
     environment: production
     version: v1.0.1
     database-name: app-prod
+  message.txt: |
+   <h1> Hello from configmap </h1>
