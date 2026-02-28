@@ -30,6 +30,14 @@
     - [DeamonSets (ds)](#deamonsets-ds)
     - [Jobs](#jobs)
     - [Cronjobs](#cronjobs)
+    - [Services (svc)](#services-svc)
+    - [Configmaps (cm)](#configmaps-cm)
+    - [Secrets](#secrets)
+    - [StatefulSets (sts)](#statefulsets-sts)
+    - [Persistence](#persistence)
+      - [Persistent Volumes (pv)](#persistent-volumes-pv)
+      - [Storage Class (sc)](#storage-class-sc)
+      - [Persistent Volume Claim (pvc)](#persistent-volume-claim-pvc)
 
 
 # Docker
@@ -307,3 +315,82 @@ A cronjob creates jobs according to a specific schedule.
 
 https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
 
+
+### Services (svc)
+
+Services provides a private IP that balances traffic among similar pods.
+
+There can also open a 
+
+https://kubernetes.io/docs/concepts/services-networking/service/
+
+List endpoints for a service: `kubectl get endpoint <SERVICE> -o yaml>`
+
+DNS address for internal communication with a service: `<SERVICE>.<NAMESPACE>.svc.cluster.local`
+
+### Configmaps (cm)
+
+https://kubernetes.io/docs/concepts/configuration/configmap/
+
+You can use a configmap to mount files into pods and set environment variables.
+
+### Secrets
+
+https://kubernetes.io/docs/concepts/configuration/secret/
+
+Similar to configmap but it obfuscates the content. Meant to be acccessible only to admins and pods.
+
+Special uses for secrets:
+
+- Docker authentication: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  
+- TLS certificates for ingresses: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/
+
+
+### StatefulSets (sts)
+
+Are similar to deployments. They creates and manages pods but in this case the pods are unique. Statefulsets create pods with an unique identifier. They have an associated service that can route traffic into each pod, not only balance between them. 
+
+Statefulsets can also contain a template to create a PVC for each pod.
+
+Fianally, Statefulsets deploy pods one after one always.
+
+https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+
+https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/
+
+
+
+### Persistence
+
+#### Persistent Volumes (pv)
+
+It represents a disk or storage server to be used by Kubernetes. Usually they're created atuomatically by a storage provisioner.
+
+https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+
+#### Storage Class (sc)
+
+It represents a storage provisioner that can create persistent volumes and provision the corresponding disk. There are provisioners for all cloud platforms and the most common storage systems.
+
+https://kubernetes.io/docs/concepts/storage/storage-classes/
+
+Easiest example is the storage class for a NFS server: https://kubernetes.io/docs/concepts/storage/storage-classes/#nfs
+
+Microk8s has its own provisioner for OpenEBS that's enabled with this script:
+
+```
+sudo apt update && sudo apt install open-iscsi
+sudo systemctl enable --now iscsid
+
+microk8s enable community
+microk8s enable openebs
+```
+
+#### Persistent Volume Claim (pvc)
+
+PVCs are a request for a persistent disk. PVCs are the resource to be used by a pod to mount a persistent volume. They specify the storage class that should provision the persistent volume for the container that mounts it. PVCs survive when the associated pod or pods are deleted.
+
+https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims
+
+Mount a PVC to a pod: https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/
