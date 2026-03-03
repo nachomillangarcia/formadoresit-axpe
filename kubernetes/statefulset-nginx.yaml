@@ -18,4 +18,16 @@ spec:
         ports:
         - containerPort: 80
           name: web
+        volumeMounts:
+        - name: nginx-sts
+          mountPath: /persistent
 
+  volumeClaimTemplates:
+  - metadata:
+      name: nginx-sts
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: openebs-hostpath
+      resources:
+        requests:
+          storage: 1Gi

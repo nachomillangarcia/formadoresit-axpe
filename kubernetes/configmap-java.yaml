@@ -12,3 +12,6 @@ data:
     database-name: app-prod
   message.txt: |
    <h1> Hello from configmap </h1>
+
+  LOG_LEVEL: INFO
+  
