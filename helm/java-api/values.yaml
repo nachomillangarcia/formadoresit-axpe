@@ -1,0 +1,21 @@
+initContainer: false
+containerPort: 8080
+
+nodeNameEnvVar:
+  name: MY_NODE_NAME
+  path: spec.nodeName
+
+properties:
+  - "environment: production"
+  - "version: v1.0.1"
+  - "database-name: app-prod"
+
+envVars:
+  MY_VARIABLE: MY_VALUE
+  OTHER_VAR: OTHER_VALUE
+
+image:
+  username: nachomillangarcia
+  repository: axpe-java-api
+  imageVersion: latest
+

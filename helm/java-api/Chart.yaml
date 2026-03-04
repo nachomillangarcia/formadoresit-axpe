@@ -1,0 +1,9 @@
+apiVersion: v2
+
+name: chart-java-api
+
+description: Chart to deploy the Java API for Axpe
+
+version: 1.0.0
+
+appVersion: 1.0.0
