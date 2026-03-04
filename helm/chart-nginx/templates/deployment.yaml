@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-deployment
+  namespace: {{ .Release.Namespace }}
+
+spec:
+
+  replicas: 1
+  {{- if or (.Values.deploymentRecreate) (eq .Values.deployment "Recreate") }}
+  strategy:
+    type: Recreate
+  {{- else }}
+  strategy:
+    type: RollingUpdate
+  {{- end }}
+
+  selector:
+    matchLabels:
+      app: nginx
+
+  template:  
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      serviceAccountName: nginx
+      containers:
+        - name: nginx
+          image: nginx:{{ .Values.imageVersion }}
+          ports:
+          - containerPort: {{ .Values.port }}
+          resources:
+            requests:
+              memory: 64M
+              cpu: 100m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+          volumeMounts:
+          - name: my-pvc
+            mountPath: /parsistent
+
+      volumes:
+      - name: my-pvc
+        persistentVolumeClaim:
+          claimName: example-pvc
+
