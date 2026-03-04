@@ -38,6 +38,14 @@
       - [Persistent Volumes (pv)](#persistent-volumes-pv)
       - [Storage Class (sc)](#storage-class-sc)
       - [Persistent Volume Claim (pvc)](#persistent-volume-claim-pvc)
+    - [RBAC (Role Based Access Control)](#rbac-role-based-access-control)
+      - [Service Accounts (sa)](#service-accounts-sa)
+      - [Roles and Clusterroles](#roles-and-clusterroles)
+      - [RoleBindings and ClusterRoleBindings](#rolebindings-and-clusterrolebindings)
+- [Helm](#helm)
+    - [Installation](#installation-1)
+    - [Core concepts](#core-concepts)
+    - [Commands](#commands)
 
 
 # Docker
@@ -315,7 +323,6 @@ A cronjob creates jobs according to a specific schedule.
 
 https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
 
-
 ### Services (svc)
 
 Services provides a private IP that balances traffic among similar pods.
@@ -394,3 +401,144 @@ PVCs are a request for a persistent disk. PVCs are the resource to be used by a 
 https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims
 
 Mount a PVC to a pod: https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/
+
+### RBAC (Role Based Access Control)
+
+#### Service Accounts (sa)
+
+A service account is just a token a pod (or many) can use to communicate with Kubernetes API
+
+https://kubernetes.io/docs/concepts/security/service-accounts/
+
+To define a new service account:
+
+```
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: my-serviceaccount
+  namespace: my-namespace
+```
+
+To use the service account in a deployment, for example:
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        ...
+      volumes:
+        ...
+      serviceAccountName: nginx
+```
+
+The token from the service account is mounted on the path `/var/run/kubernetes.io/`  along with the root certificate (`ca.crt`) to communicate with the Kubernetes API. Containers within the Kubernetes cluster can user the address `kubernetes.default.svc.cluster.local` as the endpoint.
+
+#### Roles and Clusterroles
+
+Are a list of permissions. Roles are namespaced while clusterroles are cluster-wide
+
+https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-and-clusterrole
+
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-reader
+rules:
+- apiGroups: [""]          # Same as apiVersion field for the object we want to grant permissions, without the version. "" means v1
+  resources: ["secrets"]   # Object names over which grant permissions
+  verbs: ["get", "watch", "list"]  # List of verbs
+```
+
+#### RoleBindings and ClusterRoleBindings
+
+Grant a single role to one or more users/groups/service accounts. Rolebindings are namespaced while clusterRoleBindings are cluster-wide
+
+https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-binding-examples
+
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+# You can specify more than one "subject"
+- kind: ServiceAccount       # this must be User, Group or ServiceAccount
+  name: my-serviceaccount 
+  apiGroup: rbac.authorization.k8s.io
+roleRef: 
+  kind: Role                 # this must be Role or ClusterRole
+  name: secret-reader        # name of the Role of ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+```
+
+# Helm
+
+### Installation
+
+```
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+```
+
+https://helm.sh/docs/intro/install/
+
+### Core concepts
+
+- **Chart**: An application to be deployed using Helm
+- **Release**: A chart deployed to Kubernetes
+- **Values**: Variables used to customize a release
+- **Repository**: An online source for charts. Always use official repositories
+
+### Commands
+
+Reference: https://helm.sh/docs/intro/using_helm/
+
+
+Repositories:
+
+- Add a new repository: `helm repo add bitnami https://charts.bitnami.com/bitnami`
+- Update all repositories: `helm repo update`
+
+Install / Upgrade:
+
+- `helm install <RELEASE NAME> <REPOSITORY>/<CHART>`
+- Upgrade: `helm upgrade <RELEASE NAME> <REPOSITORY>/<CHART>`
+- Use a local chart `helm install/upgrade <RELEASE NAME> <CHART FOLDER>`
+- Specify namespace `-n namespace`
+- Specify values file `--values <FILE>`
+
+Print redered YAMLs without actually deploying:
+- `helm template <RELEASE NAME> <REPOSITORY>/<CHART>`
+
+List releases:
+
+- `helm ls -n <NAMESPACE>`
+
+List revisions for a release:
+
+- `helm history -n <NAMESPACE> <RELEASE NAME>`
+
+Print values:
+
+- `helm get values -n <NAMESPACE> <RELEASE NAME>`
+- Print all values including defaults `--all`
+- Specific revision `--revision <REVISION NUMBER>`
+
+Print Kubernetes YAMLs:
+
+- `helm get manifest -n <NAMESPACE> <RELEASE NAME>`
+- Print all values including defaults `--all`
+- Specific revision `--revision <REVISION NUMBER>`
