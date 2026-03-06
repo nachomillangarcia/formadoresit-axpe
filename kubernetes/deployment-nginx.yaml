@@ -18,6 +18,9 @@ spec:
     metadata:
       labels:
         app: nginx
+      annotations:
+        co.elastic.logs/module: "nginx"
+        co.elastic.logs/fileset.stdout: "access"
     spec:
       serviceAccountName: nginx
       containers:
@@ -35,7 +38,12 @@ spec:
           volumeMounts:
           - name: my-pvc
             mountPath: /parsistent
-
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            failureThreshold: 3
+            periodSeconds: 10
       volumes:
       - name: my-pvc
         persistentVolumeClaim:
