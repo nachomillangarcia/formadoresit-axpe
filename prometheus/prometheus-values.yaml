@@ -29,3 +29,8 @@ grafana:
   persistence:
     enabled: true
     storageClassName: openebs-hostpath
+  sidecar:
+    dashboards:
+      enabled: false
+    datasources:
+      enabled: false
