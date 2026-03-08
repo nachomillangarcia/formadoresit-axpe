@@ -46,6 +46,49 @@
     - [Installation](#installation-1)
     - [Core concepts](#core-concepts)
     - [Commands](#commands)
+    - [Helm Charts](#helm-charts)
+      - [Template syntax](#template-syntax)
+      - [Hooks](#hooks)
+    - [Managing Repositories](#managing-repositories)
+      - [Classic repositories](#classic-repositories)
+      - [OCI repositories](#oci-repositories)
+      - [Helm chart tests](#helm-chart-tests)
+    - [Helm CLI plugins](#helm-cli-plugins)
+- [Log management with ElasticSearch stack](#log-management-with-elasticsearch-stack)
+    - [Installing](#installing)
+      - [ElasticSearch cluster](#elasticsearch-cluster)
+      - [Kibana](#kibana)
+    - [Filebeat](#filebeat)
+      - [Deploying](#deploying)
+      - [Config example](#config-example)
+      - [Annotations](#annotations)
+      - [References](#references)
+    - [Kibana](#kibana-1)
+- [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
+    - [Deploying](#deploying-1)
+    - [Queries](#queries)
+      - [Selectors](#selectors)
+      - [Functions](#functions)
+      - [Operators](#operators)
+    - [Metric types](#metric-types)
+      - [Gauge](#gauge)
+      - [Counter](#counter)
+      - [Histogram](#histogram)
+      - [Summary](#summary)
+    - [Configuration](#configuration)
+    - [Metrics sources (jobs and ServiceMonitor)](#metrics-sources-jobs-and-servicemonitor)
+    - [Rules (PrometheusRule)](#rules-prometheusrule)
+      - [Recording rules](#recording-rules)
+      - [Alerting rules](#alerting-rules)
+    - [Alert Mamager](#alert-mamager)
+      - [Alert Manager Discovery](#alert-manager-discovery)
+      - [Configuration](#configuration-1)
+    - [Exporters](#exporters)
+    - [Grafana](#grafana)
+      - [Connect with Prometheus](#connect-with-prometheus)
+      - [Import dashboards for node-exporter and kube-state-metrics](#import-dashboards-for-node-exporter-and-kube-state-metrics)
+      - [Create new dashboards](#create-new-dashboards)
+      - [Variables](#variables)
 
 
 # Docker
@@ -542,3 +585,575 @@ Print Kubernetes YAMLs:
 - `helm get manifest -n <NAMESPACE> <RELEASE NAME>`
 - Print all values including defaults `--all`
 - Specific revision `--revision <REVISION NUMBER>`
+
+
+
+### Helm Charts
+
+Chart structure and common files: https://helm.sh/docs/topics/charts/
+
+Kickstart a new chart: https://helm.sh/docs/chart_template_guide/getting_started/
+
+Dependencies and sub-charts: https://helm.sh/docs/chart_best_practices/dependencies/
+
+#### Template syntax
+
+Generealities: https://helm.sh/docs/chart_best_practices/templates/
+
+Using built-in variables as `.Release` and `.Chart`: https://helm.sh/docs/chart_template_guide/builtin_objects/
+
+Using Values `{{ .Values.... }}`: https://helm.sh/docs/chart_template_guide/values_files/
+
+Conditionals (`if`): https://helm.sh/docs/chart_template_guide/control_structures/#ifelse
+
+```
+# Condition for Value being true
+
+{{- if .Values.... }}
+
+{{- end }}
+
+# Compare a Value. In this example, to be equal to other part.
+# You can use the operators [eq, ne, lt, gt, and, or] into conditional statements
+
+{{- if eq .Values... <EQUAL VALUE>}}
+
+{{- end }}
+```
+
+Looping (`range`): https://helm.sh/docs/chart_template_guide/control_structures/#looping-with-the-range-action
+
+```
+# Over a list:
+
+{{- range .Values.deployment.volumeMounts }}
+  - name: {{ .name | quote }}
+    mountPath: {{ .path | quote }}
+{{- end }}
+
+# Over a dictionary
+
+{{- range $name, $value := .Values.deployment.annotations }}
+{{ $name }}: {{ $value }}
+{{- end }}
+```
+
+Modifying the scope (`with`): https://helm.sh/docs/chart_template_guide/control_structures/#modifying-scope-using-with
+
+```
+# Set the new scope to .Values.Service
+  {{- with .Values.service}}
+  type: {{ .type | default "ClusterIP" }}
+    {{- if eq .type "NodePort" }}
+    nodePort: {{ .nodePort }}
+    {{- end }}
+    targetPort: http
+  {{- end }}
+{{- end }}
+```
+
+Note that you can always access to the root scope using the reserved variable `$`: `$.Release.Name`
+
+Define variables (`{{- $relname := .Release.Name -}}`): https://helm.sh/docs/chart_template_guide/variables/
+
+Functions: https://helm.sh/docs/chart_template_guide/functions_and_pipelines/
+
+```
+# Use a functions with parameters
+
+{{ quote .Values.favorite.drink }}  # This adds quotes in the extremes of the value
+
+# Use a function like pipeline
+
+{{ .Values.favorite.food | upper | quote }} # This makes the value uppercase, and then adds quotes
+```
+
+Full functions list: https://helm.sh/docs/chart_template_guide/function_list/
+
+#### Hooks
+
+Hooks allow to deploy some objects before or after all the others.
+
+We define hooks adding annotations to the objects we want Helm to deploy before or after:
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade   # Deploy this configmap before other resources when installing or upgrading
+    "helm.sh/hook-weight": "-5"               # Set a weight to control the order among all the other objects with the same hook
+```
+
+Default deploy order in Helm:  https://helm.sh/docs/intro/using_helm/#helm-install-installing-a-package
+
+All different hooks and reference: https://helm.sh/docs/topics/charts_hooks/#helm
+
+### Managing Repositories
+
+#### Classic repositories
+
+https://helm.sh/docs/topics/chart_repository/
+
+Helm repositories are merely web servers with the chart files and an index.yaml file that Helm understands to retrieve the charts.
+
+To create a helm repository:
+
+```
+helm repo package <PATH TO CHART>     # Create a .tgz file with the chart 
+mv <TGZ FILE> ./<REPOSITORY FOLDER>   # Move it to the folder for the repo
+helm repo index ./<REPOSITORY FOLDER> # Generate or update index file
+<upload the repository folder to a file server>
+```
+
+#### OCI repositories
+
+https://helm.sh/docs/topics/registries/
+
+New OCI repositories doesn't require all the steps before. We can just push our chart to a OCI-compliant registry (DockerHub, GitHub, etc.)
+
+First we need to log in to the registry using `helm login`
+
+The we can just push the chart to the registry:
+
+``` helm push <.tgz file>```
+
+#### Helm chart tests
+
+https://helm.sh/docs/topics/chart_tests/
+
+We can set up pods that runs tests for our helm charts. For example, to check if connection to service is up. To do that, we create a new YAML in the /templates folder with a pod resource that run the tests, and add the annotation `"helm.sh/hook": test`.
+
+To run the test pods in a realese, just run the command `helm test <REALEASE>`. Tests are meant to run during development.
+
+### Helm CLI plugins
+
+There are plugins that add funcionalities to the `helm` CLI. To install a plugin, use the command `helm plugins install <GITHUB REPO FOR THE PLUGIN>`.
+
+Here is a full list of useful helm plugins: https://helm.sh/docs/community/related/#helm-plugins
+
+In the course we installed the plugin helm diff: https://github.com/databus23/helm-diff
+
+# Log management with ElasticSearch stack
+
+### Installing
+
+#### ElasticSearch cluster
+
+First install the ECK operator (https://www.elastic.co/docs/deploy-manage/deploy/cloud-on-k8s) :
+
+```
+helm repo add elastic https://helm.elastic.co
+helm install elastic-operator elastic/eck-operator -n elastic-system --create-namespace
+```
+
+Then we create the elastic namespace and a secret with the user and password:
+
+```
+kubectl create ns elastic
+kubectl -n elastic create secret generic elasticsearch-es-elastic-user  --from-literal=elastic=elastic
+```
+
+And deploy the YAML with the file `Elasticsearch` object:
+
+```
+kubectl apply -f elasticsearch/elasticsearch.yaml
+```
+
+
+#### Kibana
+
+```
+kubectl apply -f elasticsearch/kibana.yaml
+```
+
+### Filebeat
+
+Filebeat is an agent that reads log files from plenty of different sources, process them line by line, and push the processed objects to ElsticSearch for storage and querying.
+
+Filebeat comes with pod autodiscovery to be used in Kubernetes easily:
+
+https://www.elastic.co/docs/reference/beats/filebeat/configuration-autodiscover
+
+#### Deploying
+
+```
+kubectl apply -f elasticsearch/filebeat.yaml
+```
+
+This deploys filebeat in a daemonset with the default configuration for Kubernetes.
+
+#### Config example
+
+```      
+  config:
+    http:                   # Enable HTTP port for metrics
+      enabled: true
+      host: 0.0.0.0
+      port: 5066
+    filebeat:
+      autodiscover:                 # Configures Kubernetes hints-based autodiscovery
+        providers:
+        - type: kubernetes
+          node: ${NODE_NAME}
+          hints:
+            enabled: true
+            default_config:         # Default config if no other templates matches the pod
+              type: filestream
+              id: container-${data.container.id}
+              paths:
+              - /var/log/containers/*${data.kubernetes.container.id}.log       # Path to the logs folder for the node
+              parsers:
+              - container: {}               # Parse the content of the logs files with the container module
+              close.inactive: 5m
+              close.removed: true
+              close.on_state_change.removed: false
+              ignore_older: 30m
+              clean_inactive: 48h
+              prospector:
+                scanner:
+                  fingerprint.enabled: false
+                  symlinks: true
+                  check_interval: 10s        # how often to rescan
+                  exclude_files: ['\.gz$']   # skip rotated files
+```
+
+#### Annotations
+
+Hints-based autodiscovery allows a set of annotations to be added to the pods so we can modify the behaviour of filebeat for those pods: https://www.elastic.co/docs/reference/beats/filebeat/configuration-autodiscover-hints
+
+To monitor Nginx using filebeat Nginx module:
+
+```
+        co.elastic.logs/module: "nginx"
+        co.elastic.logs/fileset.stdout: "access"
+```
+
+To parse logs from CoreDNS pod using the disect processor:
+
+```
+    co.elastic.logs/processors.dissect.tokenizer: '[%{log.level}] %{client_ip}:%{client_port} - %{connection_id} "%{query.class} IN %{query.name} %{query.type} %{qid} false %{length}" %{rcode} %{flags} %{number} %{response_time}s'
+    co.elastic.logs/processors.dissect.field: "message"
+    co.elastic.logs/processors.dissect.ignore_failure: "true"
+    co.elastic.logs/processors.dissect.target_prefix: "coredns"
+```
+
+#### References
+
+- Filebeat: https://www.elastic.co/docs/reference/beats/filebeat/
+- Inputs: https://www.elastic.co/docs/reference/beats/filebeat/configuration-filebeat-options
+  - Container input: https://www.elastic.co/docs/reference/beats/filebeat/filebeat-input-container
+- Modules: https://www.elastic.co/docs/reference/beats/filebeat/filebeat-modules
+  - Nginx module: https://www.elastic.co/docs/reference/beats/filebeat/filebeat-module-nginx
+- Processors: https://www.elastic.co/docs/reference/beats/filebeat/filtering-enhancing-data
+  - Dissect processor: https://www.elastic.co/docs/reference/beats/filebeat/dissect
+
+
+### Kibana
+
+Kibana is the web dashboard to use with ElasticSearch.
+
+Once we've deployed filebeat to push the first documents to ElasticSearch, we can enter Kibana, go to `discover`  and create a new **data view** to start querying the documents: https://www.elastic.co/docs/explore-analyze/find-and-organize/data-views
+
+Then we can start using the **Discover** page to explore the data: https://www.elastic.co/docs/explore-analyze/discover/discover-get-started
+
+A very useful feature briefly explored in the course are Dashboards, in which you can create visualizations from queries: https://www.elastic.co/docs/explore-analyze/dashboards
+
+# Monitoring with Prometheus and Grafana
+
+Prometheus is the default metrics server in Kubernetes. All components in a Kubernetes cluster expose metrics in the format defined for Prometheus. 
+
+Grafana is the web dashboard that integrates easily with Prometheu and many other data sources.
+
+### Deploying
+
+Using Prometheus Operator (https://prometheus-operator.dev/) and the helm chart https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+
+```
+kubectl create namespace monitoring
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring --values helm/prometheus-values.yaml
+```
+
+This will install:
+- Prometheus operator and the necessary CustomResourceDefinitions
+- It creates an object `kind: Prometheus` with the passed specification. The operator then deploys the Prometheus cluster according to the spec.
+- Same for `kind: Alertmanager` for the alertmanager
+- A daemonset for nodeexporter (https://github.com/prometheus/node_exporter) which exposes metrics about nodes health
+- A deployment for kube-state-metrics which is a generic agent for Kubernetes that exposes metrics about different objects and their status (deployments, jobs, statefulsets, pods, etc.)
+- A deployment for Grafana
+- A bunch of default monitors to tell Prometheus to monitor all those components by default.
+
+### Queries
+
+#### Selectors
+
+https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series-selectors
+
+Prometheus metrics can be selected using its labels
+
+```
+container_memory_working_set_bytes{image!="registry.k8s.io/pause:3.10", container!="", namespace="default",pod=~"nginx-deployment-.*"}
+```
+
+This query excludes images equal to "registry.k8s.io/pause:3.10", excludes results where container label is empty, selects only the results with namespace label = default and with pod label similar to nginx-deployment
+
+#### Functions
+
+https://prometheus.io/docs/prometheus/latest/querying/functions/
+
+We can apply functions to metrics to make calculations, averages, etc
+
+```
+rate(container_cpu_usage_seconds_total{image!="registry.k8s.io/pause:3.10", container!="", namespace="default",pod=~"nginx-deployment-.*"} [5m])
+```
+
+Calculates the rate of change for the metric container_cpu_usage_seconds_total
+
+#### Operators
+
+https://prometheus.io/docs/prometheus/latest/querying/operators
+
+There are arithmetic operators (+, -, *, /, etc) and comparison operators (>, <, ==, etc)
+
+```
+container_memory_working_set_bytes{image!="registry.k8s.io/pause:3.10", container!="", namespace="default",pod=~"nginx-deployment-.*"} / (1024*1024)
+```
+
+Divides the metric by (1024*1024) to convert it to Mebibytes
+
+We can add modifiers to operators to help matching labels between metrics:
+
+https://prometheus.io/docs/prometheus/latest/querying/operators/#vector-matching
+
+```
+container_memory_working_set_bytes{image!="registry.k8s.io/pause:3.10", container!="", namespace="default",pod=~"nginx-deployment-.*"} / on(pod, namespace, container) kube_pod_container_resource_limits{resource="memory"}
+```
+
+Divides memory usage for containers by the memory limit for the container, and does the matching using only the labels (pod, namespace, container)
+
+
+### Metric types
+
+#### Gauge
+
+https://prometheus.io/docs/concepts/metric_types/#gauge
+
+Represents the exact value at the time when the metric was scraped. i.e. memory usage at that time, disk usage at that time, etc
+
+It can go up and down.
+
+We don't need to do any other operations to make use of the value. It already represents the information we're seeking
+
+#### Counter
+
+https://prometheus.io/docs/concepts/metric_types/#counter
+
+Counter only goes up. It's meant to represent a metric that's always increasing, as CPU usage or requests. Metrics are created as counters to give information not only about the moment like the gauges for memory usage, but to give information about how it has increased over time.
+
+We use rate functions like rate, irate, delta, idelta to extract information about how the counter metric has changed, so we get requests per second or core usage per second, instead of total requests or total cpu usage.
+
+```
+rate(container_cpu_usage_seconds_total{image!="registry.k8s.io/pause:3.10", container!="", namespace="default",pod=~"java-.*"} [5m])
+```
+
+`container_cpu_usage_seconds_total` is the total cpu seconds since the pod started. rate() transforms it in the average of seconds used in the last 5 min
+
+
+#### Histogram
+
+https://prometheus.io/docs/concepts/metric_types/#histogram
+
+https://prometheus.io/docs/practices/histograms/
+
+Are counters that are disgregated in different buckets, under the label `le` 
+
+```
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.00025"} 257
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.0005"} 464
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.001"} 495
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.002"} 495
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.004"} 548
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.008"} 561
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.016"} 610
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.032"} 613
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.064"} 614
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.128"} 614
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.256"} 614
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="0.512"} 723
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="1.024"} 729
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="2.048"} 729
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="4.096"} 730
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="8.192"} 730
+coredns_dns_request_duration_seconds_bucket{server="dns://:53",view="",zone=".",le="+Inf"} 730
+coredns_dns_request_duration_seconds_sum{server="dns://:53",view="",zone="."} 61.89406280700003
+coredns_dns_request_duration_seconds_count{server="dns://:53",view="",zone="."} 730
+```
+
+In `coredns_dns_request_duration_seconds_bucket` each one of these metrics represents how many queries has been served below `<le>` seconds.
+
+Histograms always contain +Inf le meaning the total of requests served. They include also a sum and count.
+
+We use this metrics along with the function histogram_quantile to get percentiles.
+
+```
+histogram_quantile(0.95, sum(idelta(coredns_dns_request_duration_seconds_bucket[5m])) by (le))
+```
+
+#### Summary
+
+https://prometheus.io/docs/concepts/metric_types/#summary
+
+Similar to histogram, but it already provides the percentiles so we don't need to apply the histogram_quantile function
+
+### Configuration
+
+Prometheus config file contains the parameters to tell the server. We can provide a config file, but the Prometheus Operator defines custom object that will add configs to the server automatically.
+
+https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+
+https://prometheus-operator.dev/docs/api-reference/api/
+
+
+### Metrics sources (jobs and ServiceMonitor)
+
+Prometheus scrape metrics from the configured targets every 1 minute (by default). A job defines a target to be scraped.
+
+In a setup with Proemtheus Operator as ours, we configure jobs creating a resource of kind ServiceMonitor: https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.ServiceMonitor
+
+```
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nginx
+  namespace: default
+  labels:
+    app: nginx
+spec:
+  endpoints:
+  - port: metrics
+
+  selector:
+    matchLabels:
+      app: nginx
+  namespaceSelector:
+    matchNames:
+    - default
+```
+
+A ServiceMonitor configures Prometheus to scrape metrics from endpoints (pods in Ready state that receives traffic from a service) that match the selector values.
+
+We can see the configured targets, with their URLs and health status in the we UI, in the targets section.
+
+The label `job` tells what serviceMonitor or job has provided the metric.
+
+### Rules (PrometheusRule)
+
+Rules are pre-defined queries that run periodically in the server. We can store the result in a new metric to be used (Recording Rules) or use the rule to trigger an alert (Alerting Rules).
+
+#### Recording rules
+
+https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
+
+```
+    groups:
+      - name: node-requests.rules
+        rules:
+        - record: node:memory_requests:ratio
+          expr: |-
+            (sum by (node) (kube_pod_container_resource_requests{resource="memory"})/ 1024 / 1024) 
+            /
+            (sum by (node) (kube_node_status_allocatable{resource="memory"})/ 1024 / 1024) * 100
+```
+
+Recording rules contain a `expr` with the query to be run periodically and a `record` to store the result. We can then use the record as a metric anywhere.
+
+#### Alerting rules
+
+https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/
+
+```      
+        rules:
+        - alert: NodeMemoryRequestsHigh
+          annotations:
+            description: |
+              {{ $labels.node }} node memory requests are over 3%, currently at {{$value }}%
+            summary: Node has high memory requests
+          expr: node:memory_requests:ratio > 3
+          for: 5m
+          labels:
+            severity: warning
+            node: |-
+              {{ $labels.node }}
+```
+
+Alerting rules contain a `expr` field with the query to be run. Also
+
+- `for` is how long it'll wait to trigger the alert
+- labels and annotations to add info to the alert triggered
+  
+This alert will triger if the `expr` returns any value for `5m`
+
+If we have a Prometheus operator, we add rules by creating a file of kind `prometheusRule`: https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.PrometheusRule
+
+
+### Alert Mamager
+
+AlertManager is the component of Prometheus that receives triggering alerts from one or many Prometheus servers and notify configured receivers.
+
+#### Alert Manager Discovery
+
+Promtheus can auto-discover alert managers to interact with, by using this section in Prometheus configuration: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config
+
+#### Configuration
+
+https://prometheus.io/docs/alerting/latest/configuration
+
+All features in alert manager are set in the configuration file. Sections
+
+- global: global settings and endpoints for different receivers
+- routes: list of rules to match triggering alerts with the coresponding receiver
+- receivers: list of receivers to be used in routes
+- inhibitors: rules to suspend alerts if there are other alerts that meet the conditions (i.e. if there are critical alerts, don't send warnings)
+
+### Exporters
+
+As not every software is made to expose metrics for Prometheus, there are exporters that make this work for us. Here is a full list of available exporters: https://prometheus.io/docs/instrumenting/exporters/
+
+We deployed Nginx exporter (https://hub.docker.com/r/nginx/nginx-prometheus-exporter) in the `deploment-nginx.yaml` file and added the corresponding service monitor.
+
+### Grafana
+
+#### Connect with Prometheus
+
+1st create a data source for Prometheus, connect with the deployed cluster using `http://prometheus-kube-prometheus-prometheus.svc.cluster.local:9090`
+
+#### Import dashboards for node-exporter and kube-state-metrics
+
+We can jump into dashboards by importing existing ones available in https://grafana.com/grafana/dashboards/
+
+One example is https://grafana.com/grafana/dashboards/1860-node-exporter-full/, we can import it in New > Import and use the ID for he dashboard.
+
+#### Create new dashboards
+
+https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/
+
+We can add new visualizations for our queries. Each visualization can contain more than one query. It's important to:
+
+* Configure the units of the visualization
+* Configure the legend for each query so it's readeable. We can us labels with `{{ label }}` in the legend.
+
+#### Variables
+
+A central feature of dashboards is setting up variables to select what resources are plotted in the dashboard.
+
+https://grafana.com/docs/grafana/latest/dashboards/variables/
+
+Variables can get the list of options dinamically using prometheus queries. Usually we will want to use the Query type: Label values, and the metric `kube_pod_info` to get a list of pods and namespaces in the cluster. We can use similar queries for nodes, deployments, etc. See the example dashboard.
+
+Variables can be ordered and used in the queries that set up other variables, so we get for example only the pods that belongs to the selected namespace.
+
+Then, we can use the variables in the queries for the visualizations: `$variable_name` 
+
