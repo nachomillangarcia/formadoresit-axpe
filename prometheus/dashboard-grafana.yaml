@@ -1,0 +1,399 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "aff7nidfrwyyof"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 11,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "aff7nidfrwyyof"
+          },
+          "editorMode": "code",
+          "expr": "container_memory_working_set_bytes{image!=\"registry.k8s.io/pause:3.10\", container!=\"\", namespace=\"$namespace\", pod=\"$pod\"}",
+          "legendFormat": "Usage: {{namespace}} - {{pod}} - {{container}}",
+          "range": true,
+          "refId": "Memory usage"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "aff7nidfrwyyof"
+          },
+          "editorMode": "code",
+          "expr": "kube_pod_container_resource_requests{resource=\"memory\", namespace=\"$namespace\", pod=\"$pod\"}",
+          "instant": false,
+          "legendFormat": "Requests: {{namespace}} - {{pod}} - {{container}}",
+          "range": true,
+          "refId": "Memory Requests"
+        }
+      ],
+      "title": "Container Memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "aff7nidfrwyyof"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "#EAB839",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 11,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "container_memory_working_set_bytes{image!=\"registry.k8s.io/pause:3.10\", container!=\"\", namespace=\"$namespace\", pod=\"$pod\", container=\"$container\"} /on(pod, container) kube_pod_container_resource_requests{resource=\"memory\", namespace=\"$namespace\", pod=\"$pod\", container=\"$container\"} * 100",
+          "legendFormat": "{{pod}} - {{container}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "New panel",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "aff7nidfrwyyof"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 11,
+        "x": 0,
+        "y": 12
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "aff7nidfrwyyof"
+          },
+          "editorMode": "code",
+          "expr": "rate(container_cpu_usage_seconds_total{image!=\"registry.k8s.io/pause:3.10\", container!=\"\", namespace=\"$namespace\", pod=\"$pod\"}[5m])",
+          "legendFormat": "Usage: {{namespace}} - {{pod}} - {{container}}",
+          "range": true,
+          "refId": "CPU usage"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "aff7nidfrwyyof"
+          },
+          "editorMode": "code",
+          "expr": "kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"$namespace\", pod=\"$pod\"}",
+          "instant": false,
+          "legendFormat": "Requests: {{namespace}} - {{pod}} - {{container}}",
+          "range": true,
+          "refId": "CPU Requests"
+        }
+      ],
+      "title": "Container CPU",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 42,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "monitoring",
+          "value": "monitoring"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "aff7nidfrwyyof"
+        },
+        "definition": "label_values(kube_pod_info,namespace)",
+        "label": "namespace",
+        "name": "namespace",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(kube_pod_info,namespace)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "regexApplyTo": "value",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "alertmanager-prometheus-kube-prometheus-alertmanager-0",
+          "value": "alertmanager-prometheus-kube-prometheus-alertmanager-0"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "aff7nidfrwyyof"
+        },
+        "definition": "label_values(kube_pod_info{namespace=\"$namespace\"},pod)",
+        "includeAll": true,
+        "label": "pod",
+        "name": "pod",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(kube_pod_info{namespace=\"$namespace\"},pod)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "regexApplyTo": "value",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "alertmanager",
+          "value": "alertmanager"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "aff7nidfrwyyof"
+        },
+        "definition": "label_values(kube_pod_container_info{namespace=\"$namespace\", pod=\"$pod\"},container)",
+        "label": "container",
+        "name": "container",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(kube_pod_container_info{namespace=\"$namespace\", pod=\"$pod\"},container)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "regexApplyTo": "value",
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "New dashboard",
+  "uid": "adkz47x",
+  "version": 5,
+  "weekStart": ""
+}
