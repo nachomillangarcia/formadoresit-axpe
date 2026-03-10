@@ -15,6 +15,22 @@ prometheus:
     type: NodePort
 
 
+additionalPrometheusRulesMap:
+  my-node-requests.rules:
+    groups:
+      - name: node-requests.rules
+        rules:
+        - record: node:memory_requests:ratio
+          expr: |-
+            sum by (node) (kube_pod_container_resource_requests{resource="memory"}) 
+
+            / on(node)
+
+            kube_node_status_allocatable{resource="memory"}
+
+            * 100
+
+
 alertmanager:
   alertmanagerSpec:
     replicas: 2
