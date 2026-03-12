@@ -1,0 +1,30 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: Trigger
+metadata:
+  name: java-api-build
+spec:
+  serviceAccountName: pipeline
+  interceptors:
+    - ref:
+        name: "github"
+      params:
+        - name: "secretRef"
+          value:
+            secretName: webhook-secret
+            secretKey: token
+        - name: "eventTypes"
+          value: ["push"]
+  bindings:
+    - ref: java-api-build
+  template:
+    ref: java-api-build
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webhook-secret
+type: Opaque
+stringData:
+  token: "myawesomesecret"
