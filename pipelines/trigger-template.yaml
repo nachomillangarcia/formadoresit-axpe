@@ -1,0 +1,41 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: java-api-build
+spec:
+  params:
+  - name: git-name
+    description: Git repo name
+  - name: git-url
+    description: Git https url
+  - name: git-branch
+    description: Git branch
+    default: main
+
+
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1
+    kind: PipelineRun
+    metadata:
+      generateName: build-deploy-$(tt.params.git-name)-
+    spec:
+      taskRunTemplate:
+        serviceAccountName: pipeline
+      pipelineRef:
+        name: java-api-build
+      params:
+      - name: git-url
+        value: $(tt.params.git-url)
+      - name: git-branch
+        value: $(tt.params.git-branch)
+      - name: imageStream
+        value: $(tt.params.git-name)
+      workspaces:
+      - name: workspace
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 500Mi
