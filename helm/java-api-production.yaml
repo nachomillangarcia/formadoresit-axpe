@@ -2,3 +2,8 @@ image:
   username: nachomillangarcia
   repository: axpe-java-api
   imageVersion: latest
+
+envVars:
+  MY_VARIABLE: MY_VALUE
+  OTHER_VAR: OTHER_VALUE
+  NEW: NEW_VALUE
