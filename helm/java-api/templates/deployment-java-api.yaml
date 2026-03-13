@@ -75,7 +75,7 @@ spec:
           - name: LOG_LEVEL
             valueFrom:
               configMapKeyRef:
-                name: java-api-config
+                name: {{ .Release.Name }}-config
                 key: LOG_LEVEL
 
           {{- with .Values.nodeNameEnvVar }}
