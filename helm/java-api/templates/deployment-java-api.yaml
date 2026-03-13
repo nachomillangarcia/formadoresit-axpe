@@ -93,8 +93,9 @@ spec:
           # args:
           # - -c
           # - "sleep 3600"
-          stopSignal: SIGKILL
+
           lifecycle:
+            stopSignal: SIGKILL
             preStop:
               exec:
                 command: ["/bin/sh", "-c", echo 'Container stopping in 10s…'; sleep 10"]
