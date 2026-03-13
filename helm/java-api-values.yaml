@@ -1,4 +1,0 @@
-image:
-  username: default-route-openshift-image-registry.apps.rm3.7wse.p1.openshiftapps.com/nachomillangarcia-dev
-  repository: axpe-java-api
-  imageVersion: latest
