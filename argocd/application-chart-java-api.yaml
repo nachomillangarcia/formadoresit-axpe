@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chart-java-api
+  namespace: argocd
+spec:
+  project: axpe
+  source:
+    repoURL: ghcr.io/nachomillangarcia/axpe-java-api
+    chart: chart-java-api
+    targetRevision: "*"
+    helm:
+      releaseName: argocd-chart-java-api
+      valuesObject:
+        nodePort: 32082
+  destination:
+    name: "in-cluster"
+    namespace: default
+  syncPolicy:
+    automated:
+      enabled: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true           # forces SSA
+      - ApplyOutOfSyncOnly=true        # optional: faster syncs

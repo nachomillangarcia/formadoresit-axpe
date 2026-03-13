@@ -1,5 +1,6 @@
 initContainer: false
 containerPort: 8080
+nodePort: 32080
 
 nodeNameEnvVar:
   name: MY_NODE_NAME
