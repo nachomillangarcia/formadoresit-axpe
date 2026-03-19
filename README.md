@@ -89,7 +89,55 @@
       - [Import dashboards for node-exporter and kube-state-metrics](#import-dashboards-for-node-exporter-and-kube-state-metrics)
       - [Create new dashboards](#create-new-dashboards)
       - [Variables](#variables)
+- [External Secrets Operator](#external-secrets-operator)
+    - [Installing](#installing-1)
+    - [SecretsStore and ClusterSecretsStore](#secretsstore-and-clustersecretsstore)
+    - [ExternalSecret and ClusterExternalSecrets](#externalsecret-and-clusterexternalsecrets)
+    - [Alternatives](#alternatives)
+- [Openshift](#openshift)
+  - [Installation and distributions](#installation-and-distributions)
+  - [oc CLI](#oc-cli)
+  - [Specific Openshift features](#specific-openshift-features)
+    - [Projects](#projects)
+    - [Routes](#routes)
+    - [Internal Image Registry](#internal-image-registry)
+    - [ImageStreams](#imagestreams)
+    - [BuildConfigs and Builds](#buildconfigs-and-builds)
+- [Jenkins in Kubernetes](#jenkins-in-kubernetes)
+  - [Installation in Openshift](#installation-in-openshift)
+  - [Kubernetes Cloud Plugin](#kubernetes-cloud-plugin)
+    - [Configuration](#configuration-2)
+    - [Static Pod Templates](#static-pod-templates)
+  - [Jenkinsfile](#jenkinsfile)
+    - [Agent](#agent)
+    - [Stages](#stages)
+  - [Jenkins Pipeline Jobs](#jenkins-pipeline-jobs)
+- [Tekton Pipelines](#tekton-pipelines)
+  - [Installation](#installation-2)
+  - [Tekton Pipeline Object reference](#tekton-pipeline-object-reference)
+    - [Task](#task)
+      - [Tasks catalog](#tasks-catalog)
+    - [TaskRun](#taskrun)
+    - [Pipeline](#pipeline)
+    - [PipelineRun](#pipelinerun)
+  - [Tekton Triggers object reference](#tekton-triggers-object-reference)
+    - [Trigger Template](#trigger-template)
+    - [Trigger Binding](#trigger-binding)
+    - [Trigger](#trigger)
+    - [Event Listener](#event-listener)
+- [ArgoCD](#argocd)
+    - [Installing](#installing-2)
+    - [Projects](#projects-1)
+    - [Applications](#applications)
+- [Next steps](#next-steps)
+  - [Networking projects](#networking-projects)
+    - [Gateway API](#gateway-api)
+    - [External DNS](#external-dns)
+    - [Cert Manager](#cert-manager)
+  - [Dashboards](#dashboards)
 
+
+**IMPORTANT: Find the example Java API and Jenkinsfile code in the extra repository: https://github.com/nachomillangarcia/axpe-java-api** 
 
 # Docker
 
@@ -718,7 +766,7 @@ First we need to log in to the registry using `helm login`
 
 The we can just push the chart to the registry:
 
-``` helm push <.tgz file>```
+``` helm push <.tgz file> <oci:// URL>```
 
 #### Helm chart tests
 
@@ -1156,4 +1204,816 @@ Variables can get the list of options dinamically using prometheus queries. Usua
 Variables can be ordered and used in the queries that set up other variables, so we get for example only the pods that belongs to the selected namespace.
 
 Then, we can use the variables in the queries for the visualizations: `$variable_name` 
+
+
+
+# External Secrets Operator
+
+External Secrets Operator synchronises secrets stored in an external source (AWS secrets manager, etc) to secrets in the Kubernetes cluster.
+
+### Installing
+
+```
+helm repo add external-secrets https://charts.external-secrets.io
+helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace
+```
+
+### SecretsStore and ClusterSecretsStore
+
+https://external-secrets.io/latest/api/secretstore/
+
+Defines the integration with the external secrets source:
+
+```
+apiVersion: v1
+kind: Secret
+metadata:
+  name: awssm-secret
+data:
+  access-key: <AWS ACCESS KEY>
+  secret-access-key: <AWS SECRET KEY>
+---
+
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: aws-secretsmanager
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: eu-central-1
+      auth:
+        secretRef:
+          accessKeyIDSecretRef:
+            name: awssm-secret
+            key: access-key
+          secretAccessKeySecretRef:
+            name: awssm-secret
+            key: secret-access-key
+```
+
+In the example we store the relevant credentials in a Secret, and then create the SecretStore for AWS secrets manager, referencing the secret for credentials.
+
+### ExternalSecret and ClusterExternalSecrets
+
+https://external-secrets.io/latest/api/externalsecret/
+
+Describes what data should be fetched, how the data should be transformed and saved as a Secret in Kubernetes-
+
+```
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: example
+spec:
+  refreshInterval: 12h
+  secretStoreRef:
+    name: aws-secretsmanager
+    kind: SecretStore
+  target:
+    name: secret-to-be-created
+    creationPolicy: Owner
+  dataFrom:
+  - extract:
+      key: formadoresit 
+```
+
+The example extracts the data stored in the secret named `formadoresit` in AWS secrets manager, and stores the data in the target Kubernetes secret `secret-to-be-created`
+
+We can then mount the secret in the pods.
+
+### Alternatives
+
+Storing credentials in Kubernetes secrets is still not so secure, as those are not encrypted.
+
+Ideally our pods should read directly secrets from the external source, bypassing kubernetes secrets completely.
+
+To automate this process we can use Secrets Store CSI driver: https://secrets-store-csi-driver.sigs.k8s.io/
+
+It's a controller that creates a new kind of volume that we can mount into the pods. At runtime, this kind of volume retrieves the secrets for the external source and mounts them into the pod, with no extra objects.
+
+# Openshift
+
+## Installation and distributions
+
+Openshift is a distribution of Kubernetes, which adds operators for quality of life for admins and developers, and enterprise support (security updates, etc).
+
+Maintained by Red Hat, it's easy to deploy Openshift clusters on-premise and on any cloud: https://docs.redhat.com/en/documentation/openshift_container_platform/4.10/html/installing/ocp-installation-overview 
+
+We can deploy it in local using CDC(Code Ready Containers): https://console.redhat.com/openshift/create/local
+
+Or using the open source upstream version of Openshift: OKD https://docs.okd.io/4.17/architecture/architecture-installation.html#architecture-installation
+
+During the course we used the developer sandbox for Openshift, which is a ready-to-use environment provided by Red Hat: https://developers.redhat.com/developer-sandbox
+
+## oc CLI
+
+oc CLI is the tool for the terminal to manage openshift. We followed these steps to install it on Linux:
+
+```
+curl -L https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz | \
+tar -xzf - -C /tmp && sudo mv /tmp/oc /usr/local/bin/oc && sudo chmod +x /usr/local/bin/oc
+```
+
+To connect to an OpenShift cluster, we use the `oc login` command with the cluter URL and token. It automatically adds entries in our kubeconfig so `oc` and  `kubectl` can interact with the Openshift cluster.
+
+## Specific Openshift features
+
+### Projects
+
+https://docs.redhat.com/en/documentation/openshift_container_platform/4.8/html/building_applications/projects
+
+In OpenShift, a Project is essentially a Kubernetes Namespace with additional features and metadata layered on top by OpenShift.
+
+It deployes a bunch of objects alongside with the namespace: resource quotas, network policies, roles and role bindings, etc.
+
+### Routes
+
+https://docs.redhat.com/en/documentation/openshift_container_platform/4.11/html/networking/configuring-routes
+
+Routes are the Openshift replacement for Gateway API in Kubernetes. It allows to expose services using a single entrypoint for all traffic into the cluster. It manages domains and TLS termination. We used Routes to expose services in Openshift.
+
+### Internal Image Registry
+
+https://docs.redhat.com/en/documentation/openshift_container_platform/4.10/html/registry/registry-overview-1
+
+Openshift features it's own image registry for Docker, so we don't need to use an external registry. It lives in the internal URL `image-registry.openshift-image-registry.svc:5000`.
+
+### ImageStreams
+
+https://docs.redhat.com/en/documentation/openshift_container_platform/4.10/html/images/managing-image-streams
+
+Represents docker images in its internal resgitry. ImageStreams integrates with deployments and any workload, allowing automatic updates of pods when we push a new version of the image. 
+
+We did that during the training by adding an anotation to the java-api deployment:
+
+```
+  annotations:
+    image.openshift.io/triggers: |-
+      [
+        {
+          "from": {
+            "kind": "ImageStreamTag",
+            "name": "java-api:latest"
+          },
+          "fieldPath": "spec.template.spec.containers[?(@.name==\"axpe-java-api\")].image"
+        }
+      ]
+```
+
+### BuildConfigs and Builds
+
+https://docs.redhat.com/es/documentation/openshift_container_platform/4.2/html/builds/understanding-buildconfigs
+
+A BuildConfig is an OpenShift resource that defines how to build a container image. It's essentially a blueprint/template for builds — it tells OpenShift where to get the source code, how to build it, and where to push the resulting image.
+
+During the training, we created a buildconfig that receives a folder (source: binary), builts the Dockerfile in the API repository and pushes to an image stream:
+
+```
+kind: BuildConfig
+apiVersion: build.openshift.io/v1
+metadata:
+  name: java-api
+  namespace: nachomillangarcia-dev
+spec:
+  nodeSelector: null
+  output:
+    to:
+      kind: ImageStreamTag
+      name: 'java-api:latest'
+  strategy:
+    type: Docker
+  source:
+    type: Binary
+```
+
+There are a bunch of other features and objects present in Openshift, related to security, resource management, networking, CI/CD, etc.
+
+# Jenkins in Kubernetes
+
+Jenkins is an extensive tool and we explored just the very basics of it, focusing on its integration with Kubernetes
+
+## Installation in Openshift
+
+Openshift provides templates to deploy a Jenkins version that includes important plugins and configurations to integrate with Kubernetes and Openshift platforms: https://github.com/redhat-cop/openshift-templates/blob/master/jenkins/jenkins-persistent-template.yml
+
+Template variables used:
+
+- `Enable OAuth in Jenkins  = false`
+- `Memory = 2Gi`
+- `Delete the nodejs and java images`
+- `Disable memory intensive administrative monitors = true`
+
+There is an official Helm chart to deploy it in any Kubernetes cluster: https://github.com/jenkinsci/helm-charts
+
+## Kubernetes Cloud Plugin
+
+https://plugins.jenkins.io/kubernetes/
+
+This is a necessary plugin to integrate Kubernetes and Jenkins. The plugin basically allows to deploy agents dinamically, using pod definitions and templates. Thanks to that feature, we can define the agents in Jenkinsfile or in statis podTemplates, that will spawn only when needed and terminate after it's completed, so we avoid wasting resources on unused agents while there are no jobs for them.
+
+### Configuration
+
+Kubernetes plugin configuration page is in `Manage Jenkins > Nodes and Clouds > Clouds`.
+
+Basic configuration includes connection details to our cluster:
+
+* URL: `kubernetes.default.svc.cluster.local`
+* CA Certificate
+* credentials (service account)
+
+### Static Pod Templates
+
+Pod Template are pod definitions that will spawn to build specific jobs. Within the pod template, we can configure different containers that may be used in those jobs.
+
+The `labels` section defines the labels to be referenced in the Jenkinsfile to build that job in the pod template.
+
+There is one container that must be always present: `agent`. This container runs the Jenkins agent that connects the new pod to the jenkisn server. The plugin can inject the agent for us, or we can create a custom container image that includes the agent.
+
+Apart from that one container, we can add more containers for different tools that may be used in the Jenkinsfile's stages
+
+We can add environment variables, volumes, securityContext, etc to our pod template.
+
+## Jenkinsfile
+
+A Jenkinsfile is a file that lives along with the application code and contains definitions of all the steps needed to build our application (unti tests, package installation, docker builds, etc).
+
+It's important to note that there are two different syntaxes:
+
+* Scripted sntax: https://www.jenkins.io/doc/book/pipeline/syntax/#scripted-pipeline  This one is kinda deprecated.
+* Declarative syntax: https://www.jenkins.io/doc/book/pipeline/syntax/#declarative-pipeline  This is the current one, which we used during the training.
+
+### Agent
+
+https://plugins.jenkins.io/kubernetes/#plugin-content-declarative-pipeline
+
+The agent section contains the definitions of the pod (or any other kind of agent) that will run our pipeline:
+
+```
+  agent {
+    kubernetes {
+      yaml '''
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          labels:
+            some-label: some-label-value
+        spec:
+          serviceAccount: jenkins
+          containers:
+          - name: maven
+            image: maven:3.9.9-eclipse-temurin-17
+            command:
+            - cat
+            tty: true
+          - name: busybox
+            image: busybox
+            command:
+            - cat
+            tty: true
+
+          - name: jnlp
+            image: image-registry.openshift-image-registry.svc:5000/openshift/jenkins-agent-base:latest
+            args: ['\${computer.jnlpmac}', '\${computer.name}']
+            workDir: /tmp
+
+        '''
+      retries 2
+    }
+  }
+``` 
+
+Above is an example of an agent with a full pod definition, featuring 3 containers. We can also reference static pod templates rom the previous section.
+
+### Stages
+
+https://www.jenkins.io/doc/book/pipeline/syntax/#declarative-directives
+
+https://www.jenkins.io/doc/book/pipeline/syntax/#sequential-stages
+
+The stages section contains a list of stages, each stage contains a list of steps, that runs in a specific container:
+
+```
+stages {
+    stage('Inspect Containers') {
+      steps {
+        container('maven') {
+            sh "mvn --version"
+            sh "java -version"
+            sh "env"
+            sh "ls"
+        }
+        container('busybox') {
+          sh 'env'
+        }
+      }
+    }
+    stage('Run Unit Tests') {
+      steps {
+        container('maven') {
+            sh "mvn test -Dmaven.repo.local=$WORKSPACE/.m2/repository"
+            sh "rm -r $WORKSPACE/.m2/repository"
+        }
+  
+      }
+    }
+    stage('Trigger docker build') {
+      steps {
+        container("jnlp") {
+            sh "ls -al"
+            sh "oc start-build -F java-api --from-dir=`pwd`"
+          }
+      }
+    }
+  }
+```
+
+Inside each steps section we can define different containers section and the steps that must run on each container.
+
+During the training we only used the step kind `sh`, which runs a command. Different plugins provides different step kinds that can be used inour Jenkinsfile.
+
+The Jenkins pipeline automatically handles the code checkout from our repository, and the connection between the pod agent and the server.
+
+Find the full example run during the training in the `axpe-java-api` repository: https://github.com/nachomillangarcia/axpe-java-api. This is a self-contained Jenkinsfile that includes the agent and stages definitions, so it can run on any Jenkins installation with the Kubernetes plugin.
+
+## Jenkins Pipeline Jobs
+
+https://www.jenkins.io/doc/tutorials/build-a-multibranch-pipeline-project/#create-your-multibranch-pipeline-project
+
+To start building a Jenkinsfile pipeline in Jenkins, we must create a new job of the kind `Pipeline` or `Multibranch Pipeline`.
+
+In a Jenkins job of those kinds, we just define the repository that contains the Jenkinspipeline to run. We must add credentials to connect to private repositories or avoid rate limiting from public GitHub.
+
+The Multibranch pipeline is especially useful, as it discovers all the branches and PRs (we can put some restrictions), and automatically creates sub-jobs that runs the Jenkinsfile on each branch.
+
+We can also configure automatic triggers (push, PR creation, etc). And a polling interval for Jenkins to scan changes in the repository, so jobs can trigger automatically on those events. We can always launch a run mannually from the web console.
+
+Once it's all set up, we can see and trigger runs of our new job. For each run we can explore logs for every step, build history, or artifacts.
+
+
+# Tekton Pipelines
+
+https://tekton.dev/docs/
+
+Tekton is a modern CI/CD system made with Kubernetes architecture in mind. It defines different Kuebernetes objects that define pipelines to build our projects. A Tekton server is in charge of managing those objects and run the pods with the desired scripts. It also include systems to manage automatic triggers from Git repositories.
+
+## Installation
+
+During the training we used Tekton pipelines in Openshift. Openshift has its own flavor of Tekton, called Openshift pipelines: https://www.redhat.com/es/technologies/cloud-computing/openshift/pipelines   OPenshift pipelines are usually included in any Openshift installation.
+
+We can use the same objects in any Kubernetes cluster, installing the Tekton operator via Helm chart. There are two different components:
+
+* Tekton pipelines: includes the resources needed to run the tasks and pipelines: https://tekton.dev/docs/installation/pipelines/
+* Tekton triggers: the resources needed to configure automatic triggers for pipelines: https://tekton.dev/docs/installation/triggers/
+
+## Tekton Pipeline Object reference
+
+https://tekton.dev/docs/pipelines/
+
+
+### Task
+
+https://tekton.dev/docs/pipelines/tasks/
+
+A Task is a collection of Steps that you define and arrange in a specific order of execution as part of your continuous integration flow. A Task executes as a Pod on your Kubernetes cluster. A Task is available within a specific namespace, while a cluster resolver can be used to access Tasks across the entire cluster.
+
+```
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: maven-unit-test
+spec:
+  workspaces:
+  - name: source
+  steps:
+    - name: unit-test
+      image: maven:3.9.9-eclipse-temurin-17
+      workingDir: /workspace/source
+      script: |
+        #!/bin/bash
+        mvn --version
+        java -version
+        env
+        ls
+        mvn test -Dmaven.repo.local=/workspace/source/.m2/repository
+        rm -r /workspace/source/.m2/repository
+```
+
+The example above is a task that runs `mvn test` in a specific docker image
+
+#### Tasks catalog
+
+There are different catalogs with pre-defined tasks that can be reused.
+
+Openshift pipelines include a bunch of tasks in the namespace `openshift-pipelines`. Those can be explored with the command `kubectl -n openshift-pipelines get tasks`
+
+There is also a public catalog with task definition to be reused in your projects: https://github.com/tektoncd/catalog
+
+### TaskRun
+
+https://tekton.dev/docs/pipelines/taskruns/
+
+A TaskRun allows you to instantiate and execute a Task on-cluster.  A TaskRun executes the Steps in the Task in the order they are specified until all Steps have executed successfully or a failure occurs
+
+### Pipeline
+
+https://tekton.dev/docs/pipelines/pipelines/
+
+A Pipeline is a collection of Tasks that you define and arrange in a specific order of execution as part of your continuous integration flow. A pipleine can include different conditions to customize how the tasks run, as parameters, workspace, etc.
+
+```
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: java-api-build
+spec:
+
+  workspaces:
+  - name: workspace
+
+  params:
+  - name: git-url
+    type: string
+    description: Git https url
+    default: https://github.com/nachomillangarcia/axpe-java-api.git
+  - name: git-branch
+    type: string
+    description: Git branch
+    default: main
+  - name: imageStream
+    type: string
+    description: imageStream
+    default: java-api
+
+
+  tasks:
+  - name: fetch-repository
+    taskRef:
+      resolver: cluster
+      params:
+      - name: kind
+        value: task
+      - name: name
+        value: git-clone
+      - name: namespace
+        value: openshift-pipelines
+    workspaces:
+    - name: output
+      workspace: workspace
+    params:
+    - name: URL
+      value: $(params.git-url)
+    - name: SUBDIRECTORY
+      value: ""
+    - name: DELETE_EXISTING
+      value: "true"
+    - name: REVISION
+      value: $(params.git-branch)
+
+  - name: inspect-workspace
+    taskRef:
+      name: inspect-workspace
+    workspaces:
+    - name: source
+      workspace: workspace    
+    runAfter:
+    - fetch-repository
+
+  - name: maven-unit-test
+    taskRef:
+      name: maven-unit-test
+    workspaces:
+    - name: source
+      workspace: workspace    
+    runAfter:
+    - fetch-repository 
+
+  - name: build-image
+    taskRef:
+      resolver: cluster
+      params:
+      - name: kind
+        value: task
+      - name: name
+        value: buildah
+      - name: namespace
+        value: openshift-pipelines
+    params:
+    - name: IMAGE
+      value: image-registry.openshift-image-registry.svc:5000/$(context.pipelineRun.namespace)/$(params.imageStream)
+    workspaces:
+    - name: source
+      workspace: workspace
+    runAfter:
+    - maven-unit-test
+```
+
+The example above includes different params to customize the execution of 4 tasks, two of them included with openshift pipelines (`fetch-repository` and `build-image`), and two defined by ourselves (`inspect-workspace` and `maven-unit-test` )
+
+
+### PipelineRun
+
+A PipelineRun allows you to instantiate and execute a Pipeline on-cluster. PipelineRun automatically creates corresponding TaskRuns for every Task in your Pipeline.
+
+## Tekton Triggers object reference
+
+https://tekton.dev/docs/triggers/
+
+### Trigger Template
+
+https://tekton.dev/docs/triggers/triggertemplates/
+
+
+A TriggerTemplate is a resource that specifies a blueprint for the resource, such as a TaskRun or PipelineRun, that you want to instantiate and/or execute when your EventListener detects an event. It exposes parameters that you can use anywhere within your resource’s template.
+
+```
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: java-api-build
+spec:
+  params:
+  - name: git-name
+    description: Git repo name
+  - name: git-url
+    description: Git https url
+  - name: git-branch
+    description: Git branch
+    default: main
+
+
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1
+    kind: PipelineRun
+    metadata:
+      generateName: build-deploy-$(tt.params.git-name)-
+    spec:
+      taskRunTemplate:
+        serviceAccountName: pipeline
+      pipelineRef:
+        name: java-api-build
+      params:
+      - name: git-url
+        value: $(tt.params.git-url)
+      - name: git-branch
+        value: $(tt.params.git-branch)
+      - name: imageStream
+        value: $(tt.params.git-name)
+      workspaces:
+      - name: workspace
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 500Mi
+```
+
+The example above creates a PipelineRun from our pipeline, with its configured parameters and a volumeClaimTemplate for persistence.
+
+### Trigger Binding
+
+A TriggerBinding allows you to extract fields from an event payload and bind them to named parameters that can then be used in a TriggerTemplate. For instance, one can extract the commit SHA from an incoming event and pass it on to create a TaskRun that clones a repo at that particular commit.
+
+```
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: java-api-build
+spec:
+  params:
+  - name: git-url
+    value: $(body.repository.clone_url)
+  - name: git-name
+    value: $(body.repository.name)
+  - name: git-branch
+    value: $(body.head_commit.id)
+```
+
+### Trigger
+
+https://tekton.dev/docs/triggers/triggers/
+
+A Trigger specifies what happens when the EventListener detects an event. A Trigger specifies a TriggerTemplate, a TriggerBinding, and optionally an Interceptor.
+
+```
+apiVersion: triggers.tekton.dev/v1beta1
+kind: Trigger
+metadata:
+  name: java-api-build
+spec:
+  serviceAccountName: pipeline
+  interceptors:
+    - ref:
+        name: "github"
+      params:
+        - name: "secretRef"
+          value:
+            secretName: webhook-secret
+            secretKey: token
+        - name: "eventTypes"
+          value: ["push"]
+  bindings:
+    - ref: java-api-build
+  template:
+    ref: java-api-build
+```
+
+### Event Listener
+
+Finally, an EventListener is a Kubernetes object that listens for events at a specified port on your Kubernetes cluster. It exposes an addressable sink that receives incoming event and specifies one or more Triggers. The sink is a Kubernetes service running the sink logic inside a dedicated Pod.
+
+```
+
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: java-api-build
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - triggerRef: java-api-build
+```
+
+Once we have configured all the YAMLs of this section, we have a pod created by the EventListener that we can expose and configure GitHub webhooks to forward repository events to that address. For every request received by the event listener pod, it will match the requests agains all triggers. If a trigger is configured for that event, it will create the corresponding PipelineRun, based on the Trigger Template and Binding configuration.
+
+With all the above we cna have an automatic and reusable CI/CD pipeline for our application on GitHub.
+
+# ArgoCD
+
+ArgoCD is a Continuous Delivery platform for Kubernetes. It allows to deploy Kubernetes YAMLs stored in Git or Helm easily, with features to access all kind of repositories and sync status to Kubernetes cluster.
+
+### Installing
+
+```
+helm repo add argo https://argoproj.github.io/argo-helm
+helm install argocd argo/argo-cd --namespace argocd --create-namespace --values argocd/argocd-values.yaml
+```
+
+Now we install the CLI to manage ArgoCD from the terminal
+
+```
+curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+rm argocd-linux-amd64
+```
+
+For the initial login, we need to reset admin password using the CLI:
+
+```
+argocd admin initial-password -n argocd
+argocd login <ARGOCD SERVER IP>
+argocd account update-password
+```
+
+Now we can access the web UI and log in with the admin user
+
+### Projects
+
+https://argo-cd.readthedocs.io/en/stable/user-guide/projects/
+
+Projects provide a logical grouping of applications, which is useful when Argo CD is used by multiple teams.
+
+They allow restricting namespaces, resources and sources for different teams and applications
+
+```
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: axpe
+  namespace: argocd
+  # Finalizer that ensures that project is not deleted until it is not referenced by any application
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Axpe CD Project
+  sourceRepos:
+  - https://github.com/nachomillangarcia/axpe-java-api.git
+  - https://github.com/nachomillangarcia/formadoresit-axpe.git
+  - ghcr.io/nachomillangarcia/axpe-java-api
+  destinations:
+  - namespace: default
+    server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+
+  namespaceResourceBlacklist:
+  - group: ''
+    kind: ResourceQuota
+  - group: ''
+    kind: LimitRange
+  - group: ''
+    kind: NetworkPolicy
+```
+
+### Applications
+
+https://argo-cd.readthedocs.io/en/stable/
+
+Application is the main object for ArgoCD. It represents the YAMLs to be deployed, which should be stored in a Git or Helm repository. Application manages sinchronization between the source and the deployed resource in our cluster.
+
+Example of Helm Chart application, which deploys a chart from the GitHub OCI repository, with customised values, in the default namespace:
+
+```
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chart-java-api
+  namespace: argocd
+spec:
+  project: axpe
+  source:
+    repoURL: ghcr.io/nachomillangarcia/axpe-java-api
+    chart: chart-java-api
+    targetRevision: "*"
+    helm:
+      releaseName: argocd-chart-java-api
+      valuesObject:
+        nodePort: 32082
+  destination:
+    name: "in-cluster"
+    namespace: default
+  syncPolicy:
+    automated:
+      enabled: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true           # forces SSA
+      - ApplyOutOfSyncOnly=true        # optional: faster syncs
+```
+
+Example of a Git source application. This one also deployes a helm chart but it's stored directly in Git. We add a secondary source to point to the values stored in a different path in the same repository:
+
+```
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: github-java-api
+  namespace: argocd
+spec:
+  project: axpe
+  destination:
+    namespace: default
+    server: https://kubernetes.default.svc
+  sources:
+  - repoURL: https://github.com/nachomillangarcia/formadoresit-axpe.git
+    path: helm/java-api
+    targetRevision: HEAD
+    helm:
+      valueFiles:
+      - $values-repo/helm/java-api-production.yaml
+
+  - repoURL: https://github.com/nachomillangarcia/formadoresit-axpe.git
+    targetRevision: HEAD
+    ref: values-repo
+    
+  syncPolicy:
+    automated:
+      enabled: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true           # forces SSA
+      - ApplyOutOfSyncOnly=true        # optional: faster syncs
+```
+
+We added automated sync policy so it whet's synced everytime it detects a change in the source
+
+# Next steps
+
+## Networking projects
+
+### Gateway API
+
+Gateway API is a project for Kubernetes that allows exposing all the service in a cluster to the Internet, using a single entrypoint called Gateway. The Gateway then routes each request to the matching service using rules we can configure. 
+
+https://gateway-api.sigs.k8s.io/
+
+It's a replacement for the old Ingress API for Kubernetes. 
+
+Openshift has its own system to achieve that, called routes: https://docs.redhat.com/en/documentation/openshift_container_platform/4.11/html/networking/configuring-routes
+
+### External DNS
+
+https://github.com/kubernetes-sigs/external-dns
+
+External DNS is a side Kubernetes project that automatically configure DNS providers to point to Kubernetes services and Gateways. It integrates with the Gateway API so it can configure the DNS domains defined in Gateway rules, to point to th external IP of our Gateway.
+
+### Cert Manager
+
+https://cert-manager.io/
+
+Same external-dns do for DNS entries, Cert Manager do for TLS certificates. It integrates with different providers to generate TLS certificates for the domains configured in the Gateway rules.
+
+## Dashboards
+
+- Headlamp: https://headlamp.dev/  Local and web, multi-cluster support. It's the new default for Kubernetes dashboards
+- Lens IDE (open source): https://github.com/lensapp/lens  Local IDE to manage Kubernetes clusters
+- Plugins for your trusted IDE. All the most popular IDEs support Kubernetes via plugins. VS Code has a really good one https://code.visualstudio.com/docs/azure/kubernetes
+
+
+Thanks for reaching the end, I wish you luck on your Kubernetes journey :)
 
